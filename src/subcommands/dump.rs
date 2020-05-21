@@ -1,35 +1,30 @@
 use clap::Clap;
+use std::fs::File;
+use std::path::PathBuf;
 use crate::error::Error;
-use crate::cli::prompt_db;
-use crate::connection_info::ConnectionInfo;
+use crate::connection_target::ConnectionTarget;
 
 #[derive(Clap)]
 pub struct DumpCommand {
-    /// Which saved connection to use
+    /// Which saved connection to use. This should be specified in the format
+    /// [database@]saved-connection where a specific database can be provided. On
+    /// connections with the database name saved, the database provided here is ignored.
+    /// If not saved or provided here, the database name will be prompted from a list of
+    /// databases currently on the server.
     #[clap()]
-    connection_name: String,
-    /// When connecting to a cluster with multiple databases, specifies the
-    /// specific database to dump
-    #[clap(short = "d", long = "db")]
-    db: Option<String>
+    connection_target: ConnectionTarget,
+
+    /// The destination file path for the dump. If the file doesn't exist it will be created
+    /// otherwise it is truncated before dumping the databse.
+    #[clap()]
+    destination_file: PathBuf
 }
 
 impl DumpCommand {
     pub fn handle(&self) -> Result<(), Error> {
-        let connection_info = ConnectionInfo::load_saved(&self.connection_name)?;
-
-        let items;
-        let db = match &self.db {
-            Some(specified_db) => specified_db,
-            None => {
-                items = connection_info.list_databases()?;
-                prompt_db(&items)?
-            }
-        };
-
         let num_bytes_copied = {
-            let mut file = std::fs::File::create("./dbdump.bin")?;
-            let mut guardian = connection_info.dump(db)?;
+            let mut file = File::create(&self.destination_file)?;
+            let mut guardian = self.connection_target.dump()?;
     
             std::io::copy(guardian.output(), &mut file)?
         };

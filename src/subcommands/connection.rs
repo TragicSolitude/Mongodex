@@ -45,7 +45,7 @@ impl ConnectionCommand {
     }
 }
 
-fn list_connections() -> Result<(), Error<'static>> {
+fn list_connections() -> Result<(), Error> {
     println!("ALL CONNECTIONS");
     for pair in ConnectionInfo::list() {
         let (key, value) = pair?;

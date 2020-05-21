@@ -1,38 +1,32 @@
+use std::path::PathBuf;
 use clap::Clap;
 use crate::error::Error;
-use crate::cli::prompt_db;
-use crate::connection_info::ConnectionInfo;
+use crate::connection_target::ConnectionTarget;
 
 #[derive(Clap)]
 pub struct RestoreCommand {
-    /// Which saved connection to use
+    /// File to restore, created by the dump subcommand.
     #[clap()]
-    connection_name: String,
-    /// When connecting to a cluster with multiple databases, specifies the
-    /// database to restore the dump to
-    #[clap(short = "d", long = "db")]
-    db: Option<String>
+    dump_file: PathBuf,
+
+    /// The database to restore to
+    #[clap()]
+    connection_target: ConnectionTarget,
+
+    // TODO Replace this by tracking backup files in embedded db
+    /// If renaming the database specify the original name
+    #[clap(short = "f", long = "from")]
+    from: Option<String>
 }
 
 impl RestoreCommand {
     pub fn handle(&self) -> Result<(), Error> {
-        let connection_info = ConnectionInfo::load_saved(&self.connection_name)?;
-
-        let items;
-        let db = match &self.db {
-            Some(specified_db) => specified_db,
-            None => {
-                items = connection_info.list_databases()?;
-                prompt_db(&items)?
-            }
-        };
-
-        // let num_bytes_copied = {
-            let mut file = std::fs::File::open("./dbdump.bin")?;
-            let mut guardian = connection_info.restore(&db, None)?;
+        let num_bytes_copied = {
+            let mut file = std::fs::File::open(&self.dump_file)?;
+            let mut guardian = self.connection_target.restore(self.from.as_deref())?;
             
-            let num_bytes_copied = std::io::copy(&mut file, guardian.input())?;
-        // };
+            std::io::copy(&mut file, guardian.input())?
+        };
 
         println!("Wrote {} bytes", num_bytes_copied);
 

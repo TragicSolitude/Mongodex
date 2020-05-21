@@ -1,35 +1,30 @@
 use clap::Clap;
 use crate::error::Error;
-use crate::cli::prompt_db;
-use crate::connection_info::ConnectionInfo;
+use crate::connection_target::ConnectionTarget;
 
-// TODO Support directly specifying database
+// TODO Support directly specifying database by creating a type that implements
+// From<&str> where the format 'database@connection' can be used on connections
+// that have more than one database. The database is optional and if not
+// provided on a connection with multiple databases it will be prompted for.
 
 #[derive(Clap)]
 pub struct MigrateCommand {
     /// Source connection
     #[clap()]
-    source_connection: String,
+    source: ConnectionTarget,
     /// Destination connection
     #[clap(long = "--to")]
-    destination_connection: String
+    destination: ConnectionTarget
 }
 
 impl MigrateCommand {
     pub fn handle(&self) -> Result<(), Error> {
-        let source = ConnectionInfo::load_saved(&self.source_connection)?;
-        let databases = source.list_databases()?;
-        let source_db_name = prompt_db(&databases)?;
-
-        let destination = ConnectionInfo::load_saved(&self.destination_connection)?;
-        let dest_db_list = destination.list_databases()?;
-        let dest_db_name = prompt_db(&dest_db_list)?;
-
         let num_bytes_copied = {
-            let mut dest_guardian = destination.restore(source_db_name, Some(dest_db_name))?;
-            let mut source_guardian = source.dump(source_db_name)?;
+            let source_name = Some(self.source.db_name.as_str());
+            let mut destination_guardian = self.destination.restore(source_name)?;
+            let mut source_guardian = self.source.dump()?;
 
-            std::io::copy(source_guardian.output(), dest_guardian.input())?
+            std::io::copy(source_guardian.output(), destination_guardian.input())?
         };
         println!("Migrated {} bytes", num_bytes_copied);
 

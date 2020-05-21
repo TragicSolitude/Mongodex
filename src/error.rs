@@ -1,7 +1,9 @@
 #[derive(thiserror::Error, Debug)]
-pub enum Error<'a> {
+pub enum Error {
+    #[error("No connection specified")]
+    NoConnection,
     #[error("No such connection \"{0}\"")]
-    NoSuchConnection(&'a str),
+    NoSuchConnection(String),
     #[error("DB Error \"{0}\"")]
     Sled(#[from] sled::Error),
     #[error("Serialization Error \"{0}\"")]
