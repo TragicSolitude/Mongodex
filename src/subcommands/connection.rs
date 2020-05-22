@@ -1,6 +1,6 @@
 use clap::Clap;
 use crate::error::Error;
-use crate::connection_info::ConnectionInfo;
+use crate::connection::Server;
 
 #[derive(Clap)]
 pub struct ConnectionCommand {
@@ -47,11 +47,11 @@ impl ConnectionCommand {
 
 fn list_connections() -> Result<(), Error> {
     println!("ALL CONNECTIONS");
-    for pair in ConnectionInfo::list() {
+    for pair in Server::list_saved() {
         let (key, value) = pair?;
         let keystr = std::str::from_utf8(&key)?;
         let connection_info =
-            bincode::deserialize::<ConnectionInfo>(&value)?;
+            bincode::deserialize::<Server>(&value)?;
         println!("{}\t{:?}", keystr, connection_info);
     }
 
@@ -59,7 +59,7 @@ fn list_connections() -> Result<(), Error> {
 }
 
 fn add_connection(args: &ConnectionModifyArgs) -> Result<(), Error> {
-    let info = ConnectionInfo::prompt()?;
+    let info = Server::prompt_details()?;
     // TODO Validate connection info
     info.save(&args.name)?;
     println!("Successfully added \"{}\"", &args.name);
@@ -69,7 +69,7 @@ fn add_connection(args: &ConnectionModifyArgs) -> Result<(), Error> {
 
 fn remove_connection(args: &ConnectionModifyArgs) -> Result<(), Error> {
     // TODO Fix usage of owned string
-    ConnectionInfo::remove(&args.name)?;
+    Server::remove_saved(&args.name)?;
     println!("Successfully removed \"{}\"", &args.name);
 
     Ok(())

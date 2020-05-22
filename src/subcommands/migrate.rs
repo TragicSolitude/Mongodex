@@ -1,6 +1,6 @@
 use clap::Clap;
 use crate::error::Error;
-use crate::connection_target::ConnectionTarget;
+use crate::connection::Database;
 
 // TODO Support directly specifying database by creating a type that implements
 // From<&str> where the format 'database@connection' can be used on connections
@@ -11,10 +11,10 @@ use crate::connection_target::ConnectionTarget;
 pub struct MigrateCommand {
     /// Source connection
     #[clap()]
-    source: ConnectionTarget,
+    source: Database,
     /// Destination connection
     #[clap(long = "--to")]
-    destination: ConnectionTarget
+    destination: Database
 }
 
 impl MigrateCommand {

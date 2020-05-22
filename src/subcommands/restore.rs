@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use clap::Clap;
 use crate::error::Error;
-use crate::connection_target::ConnectionTarget;
+use crate::connection::Database;
 
 #[derive(Clap)]
 pub struct RestoreCommand {
@@ -11,7 +11,7 @@ pub struct RestoreCommand {
 
     /// The database to restore to
     #[clap()]
-    connection_target: ConnectionTarget,
+    destination: Database,
 
     // TODO Replace this by tracking backup files in embedded db
     /// If renaming the database specify the original name
@@ -23,7 +23,7 @@ impl RestoreCommand {
     pub fn handle(&self) -> Result<(), Error> {
         let num_bytes_copied = {
             let mut file = std::fs::File::open(&self.dump_file)?;
-            let mut guardian = self.connection_target.restore(self.from.as_deref())?;
+            let mut guardian = self.destination.restore(self.from.as_deref())?;
             
             std::io::copy(&mut file, guardian.input())?
         };

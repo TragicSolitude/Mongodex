@@ -3,11 +3,16 @@ extern crate lazy_static;
 
 mod error;
 mod guardian;
-mod connection_target;
-mod connection_info;
+mod connection;
 mod subcommands;
 
 use clap::Clap;
+
+lazy_static! {
+    static ref PROJECT_DIRS: directories::ProjectDirs =
+        directories::ProjectDirs::from("us", "InTheVoid", "Mongodex")
+            .expect("No project directory available on this platform");
+}
 
 /// CLI tool for managing multiple MongoDB databases across multiple servers with an
 /// interface inspired by the NetworkManager CLI.
@@ -34,20 +39,13 @@ enum SubCommand {
     Restore(subcommands::RestoreCommand)
 }
 
-fn main() {
+fn main() -> Result<(), error::Error> {
     let opts: CliOptions = CliOptions::parse();
-
-    // TODO Follow XDG standard
-    std::fs::create_dir_all("./data").unwrap();
     
-    let result = match &opts.command {
+    match &opts.command {
         SubCommand::Connection(subcommand) => subcommand.handle(),
         SubCommand::Dump(subcommand) => subcommand.handle(),
         SubCommand::Restore(subcommand) => subcommand.handle(),
         SubCommand::Migrate(subcommand) => subcommand.handle()
-    };
-
-    if let Err(e) = result {
-        eprintln!("{}", e);
     }
 }

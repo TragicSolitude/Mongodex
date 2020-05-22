@@ -2,7 +2,7 @@ use clap::Clap;
 use std::fs::File;
 use std::path::PathBuf;
 use crate::error::Error;
-use crate::connection_target::ConnectionTarget;
+use crate::connection::Database;
 
 #[derive(Clap)]
 pub struct DumpCommand {
@@ -12,7 +12,7 @@ pub struct DumpCommand {
     /// If not saved or provided here, the database name will be prompted from a list of
     /// databases currently on the server.
     #[clap()]
-    connection_target: ConnectionTarget,
+    connection_target: Database,
 
     /// The destination file path for the dump. If the file doesn't exist it will be created
     /// otherwise it is truncated before dumping the databse.

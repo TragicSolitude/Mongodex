@@ -5,31 +5,34 @@ use serde::Deserialize;
 use dialoguer::Input;
 use dialoguer::Password;
 use dialoguer::Confirm;
+use super::Database;
+use crate::PROJECT_DIRS;
 use crate::error::Error;
-use crate::guardian::ReadGuardian;
 use crate::guardian::WriteGuardian;
+use crate::guardian::ReadGuardian;
 
 lazy_static! {
-    // TODO Move this into constant and follow XDG directory standards
-    static ref DB: sled::Db = sled::open("./data/connections")
-        .expect("Could not load connections list");
+    static ref DB: sled::Db = {
+        let path = PROJECT_DIRS.data_dir().with_file_name("connections");
+
+        sled::open(&path).expect("Could not load connections list")
+    };
 }
 
 // TODO Use zerocopy types to avoid de/serialization costs
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ConnectionInfo {
+pub struct Server {
     host: String,
     // port: u16,
     username: String,
     password: String,
     use_ssl: bool,
     repl_set_name: Option<String>,
-    auth_source: Option<String>,
-    db_name: Option<String>
+    auth_source: Option<String>
 }
 
-impl ConnectionInfo {
-    pub fn prompt() -> Result<Self, io::Error> {
+impl Server {
+    pub fn prompt_details() -> Result<Self, io::Error> {
         eprintln!("ENTER CONNECTION INFO");
         let host = Input::<String>::new()
             .with_prompt("Host")
@@ -65,30 +68,14 @@ impl ConnectionInfo {
             
             if value.is_empty() { None } else { Some(value) }
         };
-        let db_name = {
-            let confirm = Confirm::new()
-                .with_prompt("Does this connection have multiple databases?")
-                .interact()?;
-            
-            if confirm {
-                None
-            } else {
-                let value = Input::<String>::new()
-                    .with_prompt("Database name")
-                    .interact()?;
-                
-                Some(value)
-            }
-        };
     
-        Ok(ConnectionInfo {
+        Ok(Server {
             host,
             username,
             password,
             use_ssl,
             repl_set_name: replica_set,
-            auth_source,
-            db_name
+            auth_source
         })
     }
 
@@ -101,12 +88,12 @@ impl ConnectionInfo {
         Ok(info)
     }
 
-    pub fn list() -> impl Iterator<Item = Result<(sled::IVec, sled::IVec), sled::Error>> {
+    pub fn list_saved() -> impl Iterator<Item = Result<(sled::IVec, sled::IVec), sled::Error>> {
         // TODO Parse key and value here
         DB.iter()
     }
 
-    pub fn remove(name: &str) -> Result<sled::IVec, Error> {
+    pub fn remove_saved(name: &str) -> Result<sled::IVec, Error> {
         DB.remove(&name)?.ok_or(Error::NoSuchConnection(name.to_owned()))
     }
 
@@ -125,7 +112,12 @@ impl ConnectionInfo {
         Ok(vec!["testdb".to_string(), "testdb2".to_string(), "testdb3".to_string()])
     }
 
-    pub fn dump(&self, db: &str) -> Result<ReadGuardian, io::Error> {
+    #[allow(dead_code)]
+    pub fn database(self, db_name: String) -> Database {
+        Database::select(self, db_name)
+    }
+
+    pub fn dump(&self, db_name: &str) -> Result<ReadGuardian, std::io::Error> {
         let mut cmd = process::Command::new("mongodump");
 
         match &self.repl_set_name {
@@ -138,7 +130,7 @@ impl ConnectionInfo {
         cmd
             .arg(format!("--username={}", self.username))
             .arg(format!("--password={}", self.password))
-            .arg(format!("--db={}", db))
+            .arg(format!("--db={}", db_name))
             .arg("--archive");
         
         if let Some(auth_source) = &self.auth_source {
@@ -152,7 +144,7 @@ impl ConnectionInfo {
         ReadGuardian::adopt(cmd)
     }
 
-    pub fn restore(&self, destination: &str, source: Option<&str>) -> Result<WriteGuardian, io::Error> {
+    pub fn restore(&self, destination: &str, source: Option<&str>) -> Result<WriteGuardian, std::io::Error> {
         let mut cmd = process::Command::new("mongorestore");
 
         match &self.repl_set_name {
