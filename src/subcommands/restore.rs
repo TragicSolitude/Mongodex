@@ -21,6 +21,10 @@ pub struct RestoreCommand {
 
 impl RestoreCommand {
     pub fn handle(&self) -> Result<(), Error> {
+        if self.destination.read_only {
+            return Err(Error::WriteToReadOnlyConnection);
+        }
+        
         let num_bytes_copied = {
             let mut file = std::fs::File::open(&self.dump_file)?;
             let mut guardian = self.destination.restore(self.from.as_deref())?;

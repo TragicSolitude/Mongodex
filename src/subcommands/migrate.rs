@@ -19,6 +19,10 @@ pub struct MigrateCommand {
 
 impl MigrateCommand {
     pub fn handle(&self) -> Result<(), Error> {
+        if self.destination.read_only {
+            return Err(Error::WriteToReadOnlyConnection);
+        }
+        
         let num_bytes_copied = {
             let source_name = Some(self.source.db_name.as_str());
             let mut destination_guardian = self.destination.restore(source_name)?;

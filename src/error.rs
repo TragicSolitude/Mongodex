@@ -1,5 +1,7 @@
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error("Destination is marked read-only")]
+    WriteToReadOnlyConnection,
     #[error("No connection specified")]
     NoConnection,
     #[error("No such connection '{0}'")]

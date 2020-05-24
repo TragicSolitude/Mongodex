@@ -22,6 +22,7 @@ lazy_static! {
 // TODO Use zerocopy types to avoid de/serialization costs
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Server {
+    pub read_only: bool,
     host: String,
     // port: u16,
     username: String,
@@ -34,6 +35,9 @@ pub struct Server {
 impl Server {
     pub fn prompt_details() -> Result<Self, io::Error> {
         eprintln!("ENTER CONNECTION INFO");
+        let read_only = Confirm::new()
+            .with_prompt("Mark this database read-only?")
+            .interact()?;
         let host = Input::<String>::new()
             .with_prompt("Host")
             .interact()?;
@@ -70,6 +74,7 @@ impl Server {
         };
     
         Ok(Server {
+            read_only,
             host,
             username,
             password,
@@ -117,7 +122,7 @@ impl Server {
         Database::select(self, db_name)
     }
 
-    pub fn dump(&self, db_name: &str) -> Result<ReadGuardian, std::io::Error> {
+    pub fn dump(&self, db_name: &str) -> Result<ReadGuardian, io::Error> {
         let mut cmd = process::Command::new("mongodump");
 
         match &self.repl_set_name {
@@ -144,7 +149,7 @@ impl Server {
         ReadGuardian::adopt(cmd)
     }
 
-    pub fn restore(&self, destination: &str, source: Option<&str>) -> Result<WriteGuardian, std::io::Error> {
+    pub fn restore(&self, destination: &str, source: Option<&str>) -> Result<WriteGuardian, io::Error> {
         let mut cmd = process::Command::new("mongorestore");
 
         match &self.repl_set_name {
