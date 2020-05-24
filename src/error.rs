@@ -13,5 +13,7 @@ pub enum Error {
     #[error("IO Error '{0}'")]
     Io(#[from] std::io::Error),
     #[error("Invalid UTF8 Encountered")]
-    UTF8(#[from] std::str::Utf8Error)
+    UTF8(#[from] std::str::Utf8Error),
+    #[error("Mongo Error '{0}'")]
+    Mongo(#[from] mongodb::error::Error)
 }

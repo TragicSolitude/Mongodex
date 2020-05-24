@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use std::path::PathBuf;
 use clap::Clap;
 use crate::error::Error;
@@ -11,7 +12,7 @@ pub struct RestoreCommand {
 
     /// The database to restore to
     #[clap()]
-    destination: Database,
+    destination: String,
 
     // TODO Replace this by tracking backup files in embedded db
     /// If renaming the database specify the original name
@@ -21,13 +22,17 @@ pub struct RestoreCommand {
 
 impl RestoreCommand {
     pub fn handle(&self) -> Result<(), Error> {
-        if self.destination.read_only {
+        // For some reason clap parses the field twice which causes 2 db prompts for the
+        // user
+        let destination = Database::from_str(&self.destination)?;
+
+        if destination.read_only {
             return Err(Error::WriteToReadOnlyConnection);
         }
         
         let num_bytes_copied = {
             let mut file = std::fs::File::open(&self.dump_file)?;
-            let mut guardian = self.destination.restore(self.from.as_deref())?;
+            let mut guardian = destination.restore(self.from.as_deref())?;
             
             std::io::copy(&mut file, guardian.input())?
         };

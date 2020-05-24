@@ -1,6 +1,7 @@
 use clap::Clap;
 use std::fs::File;
 use std::path::PathBuf;
+use std::str::FromStr;
 use crate::error::Error;
 use crate::connection::Database;
 
@@ -12,7 +13,7 @@ pub struct DumpCommand {
     /// If not saved or provided here, the database name will be prompted from a list of
     /// databases currently on the server.
     #[clap()]
-    connection_target: Database,
+    connection_target: String,
 
     /// The destination file path for the dump. If the file doesn't exist it will be created
     /// otherwise it is truncated before dumping the databse.
@@ -22,9 +23,12 @@ pub struct DumpCommand {
 
 impl DumpCommand {
     pub fn handle(&self) -> Result<(), Error> {
+        // For some reason clap parses the field twice which causes 2 db prompts for the
+        // user
+        let connection_target = Database::from_str(&self.connection_target)?;
         let num_bytes_copied = {
             let mut file = File::create(&self.destination_file)?;
-            let mut guardian = self.connection_target.dump()?;
+            let mut guardian = connection_target.dump()?;
     
             std::io::copy(guardian.output(), &mut file)?
         };

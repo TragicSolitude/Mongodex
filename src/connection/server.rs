@@ -112,9 +112,22 @@ impl Server {
         Ok(())
     }
 
-    pub fn list_databases(&self) -> Result<Vec<String>, Error> {
-        // TODO
-        Ok(vec!["testdb".to_string(), "testdb2".to_string(), "testdb3".to_string()])
+    pub fn list_databases(&self) -> Result<Vec<String>, mongodb::error::Error> {
+        use mongodb::options::ClientOptions;
+        use mongodb::options::StreamAddress;
+        use mongodb::sync::Client;
+
+        let hosts = self.host
+            .split(',')
+            .map(|h| { StreamAddress::parse(h) })
+            .collect::<Result<Vec<_>, _>>()?;
+        let client_options = ClientOptions::builder()
+            .hosts(hosts)
+            .repl_set_name(self.repl_set_name.clone())
+            .build();
+        let client = Client::with_options(client_options)?;
+
+        client.list_database_names(None, None)
     }
 
     #[allow(dead_code)]
