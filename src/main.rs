@@ -39,13 +39,20 @@ enum SubCommand {
     Restore(subcommands::RestoreCommand)
 }
 
-fn main() -> Result<(), error::Error> {
+fn main() {
     let opts: CliOptions = CliOptions::parse();
     
-    match &opts.command {
+    let res = match &opts.command {
         SubCommand::Connection(subcommand) => subcommand.handle(),
         SubCommand::Dump(subcommand) => subcommand.handle(),
         SubCommand::Restore(subcommand) => subcommand.handle(),
         SubCommand::Migrate(subcommand) => subcommand.handle()
+    };
+
+    if let Err(e) = res {
+        eprintln!("Error: {}", e);
+
+        // TODO Cast error enum to actual, usable exit codes
+        std::process::exit(1);
     }
 }
