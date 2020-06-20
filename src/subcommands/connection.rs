@@ -15,7 +15,12 @@ pub enum ConnectionCommand {
     Remove(ConnectionModifyArgs),
     /// Edit a saved connection
     #[clap(name = "edit")]
-    Edit(ConnectionModifyArgs)
+    Edit(ConnectionModifyArgs),
+    /// List the databases currently present on the specified server by
+    /// establishing a connection to the server and running the 'listDatabases'
+    /// command.
+    #[clap(name = "list-databases")]
+    ListDatabases(ConnectionModifyArgs)
 }
 
 #[derive(Clap)]
@@ -57,4 +62,13 @@ pub fn remove(args: &ConnectionModifyArgs) -> Result<(), Error> {
 pub fn edit(_args: &ConnectionModifyArgs) -> Result<(), Error> {
     // let connection = ConnectionInfo::load_saved(&args.name)?;
     todo!();
+}
+
+pub fn list_databases(args: &ConnectionModifyArgs) -> Result<(), Error> {
+    let info = Server::load_saved(&args.name)?;
+    let databases = info.list_databases()?;
+
+    println!("{}", databases.join(" "));
+
+    Ok(())
 }

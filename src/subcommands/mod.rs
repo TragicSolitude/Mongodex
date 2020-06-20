@@ -16,7 +16,8 @@ pub fn run(subcommand: &SubCommand) -> Result<(), Error> {
             ConnectionCommand::List => connection::list(),
             ConnectionCommand::Add(args) => connection::add(args),
             ConnectionCommand::Remove(args) => connection::remove(args),
-            ConnectionCommand::Edit(args) => connection::edit(args)
+            ConnectionCommand::Edit(args) => connection::edit(args),
+            ConnectionCommand::ListDatabases(args) => connection::list_databases(args)
         },
         SubCommand::Dump(options) => dump::run(options),
         SubCommand::Restore(options) => restore::run(options),
