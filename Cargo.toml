@@ -16,7 +16,7 @@ thiserror = "1.0"
 lazy_static = "1.4"
 os_pipe = "0.9"
 directories = "2.0"
-mongodb = { version = "0.10", default-features = false, features = ["sync"] }
+mongodb = { version = "1.0", default-features = false, features = ["sync"] }
 
 [profile.release]
 lto = true

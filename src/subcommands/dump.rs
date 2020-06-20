@@ -6,7 +6,7 @@ use crate::error::Error;
 use crate::connection::Database;
 
 #[derive(Clap)]
-pub struct DumpCommand {
+pub struct DumpOptions {
     /// Which saved connection to use. This should be specified in the format
     /// [database@]saved-connection where a specific database can be provided. On
     /// connections with the database name saved, the database provided here is ignored.
@@ -21,28 +21,26 @@ pub struct DumpCommand {
     destination_file: PathBuf
 }
 
-impl DumpCommand {
-    pub fn handle(&self) -> Result<(), Error> {
-        // For some reason clap parses the field twice which causes 2 db prompts for the
-        // user
-        let connection_target = Database::from_str(&self.connection_target)?;
-        let num_bytes_copied = {
-            let mut file = File::create(&self.destination_file)?;
-            let mut guardian = connection_target.dump()?;
-    
-            std::io::copy(guardian.output(), &mut file)?
-        };
-        println!("Wrote {} bytes", num_bytes_copied);
+pub fn run(options: &DumpOptions) -> Result<(), Error> {
+    // For some reason clap parses the field twice which causes 2 db prompts for the
+    // user
+    let connection_target = Database::from_str(&options.connection_target)?;
+    let num_bytes_copied = {
+        let mut file = File::create(&options.destination_file)?;
+        let mut guardian = connection_target.dump()?;
 
-        // TODO Link dumps to connections
+        std::io::copy(guardian.output(), &mut file)?
+    };
+    println!("Wrote {} bytes", num_bytes_copied);
 
-        // TODO Implement some kind of compression for the stored file. Perhaps
-        // this can be gzip to maintain compatibility with mongorestore
+    // TODO Link dumps to connections
 
-        // TODO Implement encryption for the stored file. This should use a
-        // randomly generated key saved to the connection. Connections can
-        // optionally also be encrypted.
-    
-        Ok(())
-    }
+    // TODO Implement some kind of compression for the stored file. Perhaps
+    // this can be gzip to maintain compatibility with mongorestore
+
+    // TODO Implement encryption for the stored file. This should use a
+    // randomly generated key saved to the connection. Connections can
+    // optionally also be encrypted.
+
+    Ok(())
 }

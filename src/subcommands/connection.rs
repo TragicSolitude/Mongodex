@@ -3,13 +3,7 @@ use crate::error::Error;
 use crate::connection::Server;
 
 #[derive(Clap)]
-pub struct ConnectionCommand {
-    #[clap(subcommand)]
-    subcommand: SubCommand
-}
-
-#[derive(Clap)]
-enum SubCommand {
+pub enum ConnectionCommand {
     /// List all saved connections
     #[clap(name = "list")]
     List,
@@ -25,27 +19,12 @@ enum SubCommand {
 }
 
 #[derive(Clap)]
-struct ConnectionModifyArgs {
+pub struct ConnectionModifyArgs {
     #[clap()]
     name: String
 }
 
-impl ConnectionCommand {
-    pub fn handle(&self) -> Result<(), Error> {
-        match &self.subcommand {
-            SubCommand::List =>
-                list_connections(),
-            SubCommand::Add(args) =>
-                add_connection(args),
-            SubCommand::Remove(args) =>
-                remove_connection(args),
-            SubCommand::Edit(args) =>
-                edit_connection(args)
-        }
-    }
-}
-
-fn list_connections() -> Result<(), Error> {
+pub fn list() -> Result<(), Error> {
     println!("ALL CONNECTIONS");
     for pair in Server::list_saved() {
         let (key, value) = pair?;
@@ -58,7 +37,7 @@ fn list_connections() -> Result<(), Error> {
     Ok(())
 }
 
-fn add_connection(args: &ConnectionModifyArgs) -> Result<(), Error> {
+pub fn add(args: &ConnectionModifyArgs) -> Result<(), Error> {
     let info = Server::prompt_details()?;
     // TODO Validate connection info
     info.save(&args.name)?;
@@ -67,7 +46,7 @@ fn add_connection(args: &ConnectionModifyArgs) -> Result<(), Error> {
     Ok(())
 }
 
-fn remove_connection(args: &ConnectionModifyArgs) -> Result<(), Error> {
+pub fn remove(args: &ConnectionModifyArgs) -> Result<(), Error> {
     // TODO Fix usage of owned string
     Server::remove_saved(&args.name)?;
     println!("Successfully removed \"{}\"", &args.name);
@@ -75,7 +54,7 @@ fn remove_connection(args: &ConnectionModifyArgs) -> Result<(), Error> {
     Ok(())
 }
 
-fn edit_connection(_args: &ConnectionModifyArgs) -> Result<(), Error> {
+pub fn edit(_args: &ConnectionModifyArgs) -> Result<(), Error> {
     // let connection = ConnectionInfo::load_saved(&args.name)?;
     todo!();
 }

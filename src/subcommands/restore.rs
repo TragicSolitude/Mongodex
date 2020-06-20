@@ -5,7 +5,7 @@ use crate::error::Error;
 use crate::connection::Database;
 
 #[derive(Clap)]
-pub struct RestoreCommand {
+pub struct RestoreOptions {
     /// File to restore, created by the dump subcommand.
     #[clap()]
     dump_file: PathBuf,
@@ -20,25 +20,23 @@ pub struct RestoreCommand {
     from: Option<String>
 }
 
-impl RestoreCommand {
-    pub fn handle(&self) -> Result<(), Error> {
-        // For some reason clap parses the field twice which causes 2 db prompts for the
-        // user
-        let destination = Database::from_str(&self.destination)?;
+pub fn run(options: &RestoreOptions) -> Result<(), Error> {
+    // For some reason clap parses the field twice which causes 2 db prompts for the
+    // user
+    let destination = Database::from_str(&options.destination)?;
 
-        if destination.read_only {
-            return Err(Error::WriteToReadOnlyConnection);
-        }
-        
-        let num_bytes_copied = {
-            let mut file = std::fs::File::open(&self.dump_file)?;
-            let mut guardian = destination.restore(self.from.as_deref())?;
-            
-            std::io::copy(&mut file, guardian.input())?
-        };
-
-        println!("Wrote {} bytes", num_bytes_copied);
-
-        Ok(())
+    if destination.read_only {
+        return Err(Error::WriteToReadOnlyConnection);
     }
+    
+    let num_bytes_copied = {
+        let mut file = std::fs::File::open(&options.dump_file)?;
+        let mut guardian = destination.restore(options.from.as_deref())?;
+        
+        std::io::copy(&mut file, guardian.input())?
+    };
+
+    println!("Wrote {} bytes", num_bytes_copied);
+
+    Ok(())
 }
