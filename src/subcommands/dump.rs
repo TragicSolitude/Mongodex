@@ -1,46 +1,36 @@
-use clap::Clap;
+use clap::ArgMatches;
+use crate::connection::{ConnectionRepository, Database};
+use anyhow::Result;
+use anyhow::Context;
 use std::fs::File;
-use std::path::PathBuf;
-use std::str::FromStr;
-use crate::error::Error;
-use crate::connection::Database;
 
-#[derive(Clap)]
-pub struct DumpOptions {
-    /// Which saved connection to use. This should be specified in the format
-    /// [database@]saved-connection where a specific database can be provided. On
-    /// connections with the database name saved, the database provided here is ignored.
-    /// If not saved or provided here, the database name will be prompted from a list of
-    /// databases currently on the server.
-    #[clap()]
-    connection_target: String,
-
-    /// The destination file path for the dump. If the file doesn't exist it will be created
-    /// otherwise it is truncated before dumping the databse.
-    #[clap()]
-    destination_file: PathBuf
-}
-
-pub fn run(options: &DumpOptions) -> Result<(), Error> {
-    // For some reason clap parses the field twice which causes 2 db prompts for the
-    // user
-    let connection_target = Database::from_str(&options.connection_target)?;
+pub async fn run<'a, 'b>(connections: &'a mut ConnectionRepository, args: &'b ArgMatches<'b>) -> Result<()> {
+    let source_str = args.value_of("source")
+        .with_context(|| "Connection target not specified")?;
+    let destination_file = args.value_of("destination_file")
+        .with_context(|| "Destination file path not given")?;
+    let connection_target = Database::from_str(connections, source_str).await?;
     let num_bytes_copied = {
-        let mut file = File::create(&options.destination_file)?;
+        // TODO Async
+        // let mut file = File::create(&destination_file).await?;
+        let mut file = File::create(&destination_file)?;
         let mut guardian = connection_target.dump()?;
 
+        // TODO Async
         std::io::copy(guardian.output(), &mut file)?
     };
+
     println!("Wrote {} bytes", num_bytes_copied);
 
-    // TODO Link dumps to connections
+    // TODO Link dumps to connections somehow
 
     // TODO Implement some kind of compression for the stored file. Perhaps
     // this can be gzip to maintain compatibility with mongorestore
 
     // TODO Implement encryption for the stored file. This should use a
     // randomly generated key saved to the connection. Connections can
-    // optionally also be encrypted.
+    // optionally also be encrypted using a key derived from a user-input
+    // password.
 
     Ok(())
 }

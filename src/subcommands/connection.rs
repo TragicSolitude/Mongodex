@@ -1,74 +1,68 @@
-use clap::Clap;
-use crate::error::Error;
+use anyhow::Result;
+use clap::ArgMatches;
+use crate::ConnectionRepository;
 use crate::connection::Server;
+use colored::*;
+use anyhow::Context;
 
-#[derive(Clap)]
-pub enum ConnectionCommand {
-    /// List all saved connections
-    #[clap(name = "list")]
-    List,
-    /// Add a new connection
-    #[clap(name = "add")]
-    Add(ConnectionModifyArgs),
-    /// Remove a saved connection
-    #[clap(name = "remove")]
-    Remove(ConnectionModifyArgs),
-    /// Edit a saved connection
-    #[clap(name = "edit")]
-    Edit(ConnectionModifyArgs),
-    /// List the databases currently present on the specified server by
-    /// establishing a connection to the server and running the 'listDatabases'
-    /// command.
-    #[clap(name = "list-databases")]
-    ListDatabases(ConnectionModifyArgs)
-}
+async fn list(connections: &mut ConnectionRepository) -> Result<()> {
+    // println!("ALL CONNECTIONS");
 
-#[derive(Clap)]
-pub struct ConnectionModifyArgs {
-    #[clap()]
-    name: String
-}
-
-pub fn list() -> Result<(), Error> {
-    println!("ALL CONNECTIONS");
-    for pair in Server::list_saved() {
-        let (key, value) = pair?;
-        let keystr = std::str::from_utf8(&key)?;
-        let connection_info =
-            bincode::deserialize::<Server>(&value)?;
-        println!("{}\t{:?}", keystr, connection_info);
+    let server_list = connections.list_connections().await?;
+    // TODO Move print logic into server type itself
+    let header = format!("{: <10}\t{: <70}", "Name", "Host");
+    println!("{}", header.bold());
+    for server in server_list {
+        // let read_only = if server.read_only { "Y" } else { "N" };
+        // println!("{: <10}\t{: <10}", "localhost:27017", read_only);
+        println!("{}", server);
     }
 
     Ok(())
 }
 
-pub fn add(args: &ConnectionModifyArgs) -> Result<(), Error> {
-    let info = Server::prompt_details()?;
-    // TODO Validate connection info
-    info.save(&args.name)?;
-    println!("Successfully added \"{}\"", &args.name);
+async fn add<'a, 'b>(connections: &'a mut ConnectionRepository, name: &'b str) -> Result<()> {
+    let info = Server::prompt_details(name)?;
+    connections.add_connection(&info).await?;
 
     Ok(())
 }
 
-pub fn remove(args: &ConnectionModifyArgs) -> Result<(), Error> {
-    // TODO Fix usage of owned string
-    Server::remove_saved(&args.name)?;
-    println!("Successfully removed \"{}\"", &args.name);
+async fn remove<'a, 'b>(connections: &'a mut ConnectionRepository, name: &'b str) -> Result<()> {
+    connections.remove_connection(name).await?;
 
     Ok(())
 }
 
-pub fn edit(_args: &ConnectionModifyArgs) -> Result<(), Error> {
-    // let connection = ConnectionInfo::load_saved(&args.name)?;
-    todo!();
-}
-
-pub fn list_databases(args: &ConnectionModifyArgs) -> Result<(), Error> {
-    let info = Server::load_saved(&args.name)?;
-    let databases = info.list_databases()?;
-
-    println!("{}", databases.join(" "));
+async fn edit<'a, 'b>(connections: &'a mut ConnectionRepository, name: &'b str) -> Result<()> {
+    let mut connection = connections.get_connection(name).await?;
+    connection.prompt_update_details()?;
+    connections.replace_connection(&connection).await?;
 
     Ok(())
+}
+
+pub async fn run<'a, 'b>(connections: &'a mut ConnectionRepository, args: &'b ArgMatches<'b>) -> Result<()> {
+    match args.subcommand() {
+        ("list", Some(_args)) => list(connections).await,
+        ("add", Some(args)) => {
+            let name = args.value_of("name")
+                .with_context(|| "Name argument not provided")?;
+
+            add(connections, name).await
+        },
+        ("remove", Some(args)) => {
+            let name = args.value_of("name")
+                .with_context(|| "Name argument not provided")?;
+
+            remove(connections, name).await
+        },
+        ("edit", Some(args)) => {
+            let name = args.value_of("name")
+                .with_context(|| "Name argument not provided")?;
+
+            edit(connections, name).await
+        },
+        _ => Ok(())
+    }
 }

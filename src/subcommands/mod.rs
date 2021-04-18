@@ -1,26 +1,13 @@
 mod connection;
+mod listdatabases;
+mod shell;
 mod dump;
 mod restore;
 mod migrate;
 
-use crate::error::Error;
-use crate::SubCommand;
-pub use connection::ConnectionCommand;
-pub use dump::DumpOptions;
-pub use restore::RestoreOptions;
-pub use migrate::MigrateOptions;
-
-pub fn run(subcommand: &SubCommand) -> Result<(), Error> {
-    match subcommand {
-        SubCommand::Connection(command) => match command {
-            ConnectionCommand::List => connection::list(),
-            ConnectionCommand::Add(args) => connection::add(args),
-            ConnectionCommand::Remove(args) => connection::remove(args),
-            ConnectionCommand::Edit(args) => connection::edit(args),
-            ConnectionCommand::ListDatabases(args) => connection::list_databases(args)
-        },
-        SubCommand::Dump(options) => dump::run(options),
-        SubCommand::Restore(options) => restore::run(options),
-        SubCommand::Migrate(options) => migrate::run(options)
-    }
-}
+pub use connection::run as connection;
+pub use listdatabases::run as listdatabases;
+pub use shell::run as shell;
+pub use dump::run as dump;
+pub use restore::run as restore;
+pub use migrate::run as migrate;

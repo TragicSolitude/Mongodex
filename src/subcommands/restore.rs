@@ -1,38 +1,29 @@
-use std::str::FromStr;
-use std::path::PathBuf;
-use clap::Clap;
-use crate::error::Error;
-use crate::connection::Database;
+use clap::ArgMatches;
+use crate::connection::{ConnectionRepository, Database};
+use anyhow::Result;
+use anyhow::Context;
+use std::fs::File;
 
-#[derive(Clap)]
-pub struct RestoreOptions {
-    /// File to restore, created by the dump subcommand.
-    #[clap()]
-    dump_file: PathBuf,
+pub async fn run<'a, 'b>(connections: &'a mut ConnectionRepository, args: &'b ArgMatches<'b>) -> Result<()> {
+    let dump_file_path = args.value_of("dump_file")
+        .with_context(|| "Dump file path was not given")?;
+    let destination_name = args.value_of("destination")
+        .with_context(|| "Destination was not specified")?;
+    let from = args.value_of("from");
 
-    /// The database to restore to
-    #[clap()]
-    destination: String,
-
-    // TODO Replace this by tracking backup files in embedded db
-    /// If renaming the database specify the original name
-    #[clap(short = "f", long = "from")]
-    from: Option<String>
-}
-
-pub fn run(options: &RestoreOptions) -> Result<(), Error> {
-    // For some reason clap parses the field twice which causes 2 db prompts for the
-    // user
-    let destination = Database::from_str(&options.destination)?;
+    let destination = Database::from_str(connections, destination_name).await?;
 
     if destination.read_only {
-        return Err(Error::WriteToReadOnlyConnection);
+        return Err(anyhow!("Destination is read only"));
     }
-    
+
     let num_bytes_copied = {
-        let mut file = std::fs::File::open(&options.dump_file)?;
-        let mut guardian = destination.restore(options.from.as_deref())?;
-        
+        // TODO Async
+        // let mut file = File::create(&destination_file).await?;
+        let mut file = File::open(dump_file_path)?;
+        let mut guardian = destination.restore(from.as_deref())?;
+
+        // TODO Async
         std::io::copy(&mut file, guardian.input())?
     };
 

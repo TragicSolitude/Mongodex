@@ -1,49 +1,98 @@
-use std::io;
-use std::process;
+use std::{fmt::Display, io};
 use serde::Serialize;
 use serde::Deserialize;
-use dialoguer::Input;
-use dialoguer::Password;
 use dialoguer::Confirm;
-use super::Database;
-use crate::PROJECT_DIRS;
-use crate::error::Error;
-use crate::guardian::WriteGuardian;
-use crate::guardian::ReadGuardian;
+use dialoguer::Password;
+use dialoguer::Input;
+use std::process;
+use std::os::unix::process::CommandExt;
 
-lazy_static! {
-    static ref DB: sled::Db = {
-        let path = PROJECT_DIRS.data_dir().with_file_name("connections");
-
-        sled::open(&path).expect("Could not load connections list")
-    };
+#[derive(Serialize, Deserialize, Debug, Clone, sqlx::FromRow)]
+pub struct Server {
+    pub name: String,
+    pub read_only: bool,
+    pub(super) host: String,
+    pub(super) username: String,
+    pub(super) password: String,
+    pub(super) use_ssl: bool,
+    pub(super) repl_set_name: Option<String>,
+    pub(super) auth_source: Option<String>
 }
 
-// TODO Use zerocopy types to avoid de/serialization costs
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Server {
-    pub read_only: bool,
-    host: String,
-    // port: u16,
-    username: String,
-    password: String,
-    use_ssl: bool,
-    repl_set_name: Option<String>,
-    auth_source: Option<String>
+impl Into<mongodb::options::ClientOptions> for &Server {
+    fn into(self) -> mongodb::options::ClientOptions {
+        let builder = mongodb::options::ClientOptions::builder()
+            .hosts([mongodb::options::StreamAddress::parse(&self.host).unwrap()])
+            // Any way to avoid the clone here?
+            .repl_set_name(self.repl_set_name.clone());
+            // TODO Figure out how to better handle DBs with and without
+            // authentication here.
+            // .credential(mongodb::options::Credential::builder()
+                // .username(self.username)
+                // .password(self.password)
+                // .source(self.auth_source)
+                // .build());
+
+        if self.use_ssl {
+            builder.tls(mongodb::options::TlsOptions::default())
+                   .build()
+        } else {
+            builder.build()
+        }
+    }
+}
+
+impl Display for Server {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // TODO Change this format to be a more verbose output and use a
+        // dedicated method for printing a list of Servers
+        write!(f, "{: <10}\t{: <70}", self.name, self.host)
+    }
 }
 
 impl Server {
-    pub fn prompt_details() -> Result<Self, io::Error> {
+    pub fn connect(&self) -> Result<mongodb::Client, mongodb::error::Error> {
+        mongodb::Client::with_options(self.into())
+    }
+
+    pub fn shell(self) -> io::Error {
+        let mut command = process::Command::new("mongo");
+
+        match &self.repl_set_name {
+            Some(repl_set_name) =>
+                command.arg(format!("--host={}/{}", repl_set_name, self.host)),
+            None =>
+                command.arg(format!("--host={}", self.host))
+        };
+
+        if !self.username.is_empty() {
+            command
+                .arg(format!("--username={}", self.username))
+                .arg(format!("--password={}", self.password));
+        }
+
+        if let Some(auth_source) = &self.auth_source {
+            command.arg(format!("--authenticationDatabase={}", auth_source));
+        }
+
+        if self.use_ssl {
+            command.arg("--ssl");
+        }
+
+        command.exec()
+    }
+
+    pub fn prompt_details<T: Into<String>>(name: T) -> Result<Self, io::Error> {
         eprintln!("ENTER CONNECTION INFO");
         let read_only = Confirm::new()
-            .with_prompt("Mark this database read-only?")
+            .with_prompt("Mark this server read only?")
             .interact()?;
         let host = Input::<String>::new()
             .with_prompt("Host")
             .interact()?;
         // let port = Input::<u16>::new()
-        //     .with_prompt("Port")
-        //     .interact()?;
+            // .with_prompt("Port")
+            // .interact()?;
         let username = Input::<String>::new()
             .with_prompt("Username")
             .allow_empty(true)
@@ -56,12 +105,12 @@ impl Server {
         let use_ssl = Confirm::new()
             .with_prompt("Use SSL?")
             .interact()?;
-        let replica_set = {
+        let repl_set_name = {
             let value = Input::<String>::new()
                 .with_prompt("Replica Set (optional)")
                 .allow_empty(true)
                 .interact()?;
-            
+
             if value.is_empty() { None } else { Some(value) }
         };
         let auth_source = {
@@ -69,133 +118,81 @@ impl Server {
                 .with_prompt("Auth Source (optional)")
                 .allow_empty(true)
                 .interact()?;
-            
+
             if value.is_empty() { None } else { Some(value) }
         };
-    
+
         Ok(Server {
+            name: name.into(),
             read_only,
             host,
             username,
             password,
             use_ssl,
-            repl_set_name: replica_set,
+            repl_set_name,
             auth_source
         })
     }
 
-    pub fn load_saved(name: &str) -> Result<Self, Error> {
-        let data = DB.get(&name)?
-            .ok_or(Error::NoSuchConnection(name.to_owned()))?;
-        
-        let info = bincode::deserialize::<Self>(&data)?;
+    pub fn prompt_update_details(&mut self) -> Result<(), io::Error> {
+        eprintln!("ENTER CONNECTION INFO");
+        self.read_only = Confirm::new()
+            .default(self.read_only)
+            .with_prompt("Mark this server read only?")
+            .interact()?;
+        self.host = Input::<String>::new()
+            .default(self.host.clone())
+            .with_prompt("Host")
+            .interact()?;
+        // let port = Input::<u16>::new()
+            // .default(self.port)
+            // .with_prompt("Port")
+            // .interact()?;
+        self.username = Input::<String>::new()
+            .default(self.username.clone())
+            .with_prompt("Username")
+            .allow_empty(true)
+            .interact()?;
+        self.password = Password::new()
+            .with_prompt("Password (Input hidden)")
+            .with_confirmation("Confirm password", "Password mismatch")
+            .allow_empty_password(true)
+            .interact()?;
+        self.use_ssl = Confirm::new()
+            .default(self.use_ssl)
+            .with_prompt("Use SSL?")
+            .interact()?;
+        self.repl_set_name = {
+            let value = match self.repl_set_name {
+                Some(ref repl_set_name) => Input::<String>::new()
+                    .default(repl_set_name.clone())
+                    .with_prompt("Replica Set (optional)")
+                    .allow_empty(true)
+                    .interact()?,
+                None => Input::<String>::new()
+                    .with_prompt("Replica Set (optional)")
+                    .allow_empty(true)
+                    .interact()?
+            };
 
-        Ok(info)
-    }
+            if value.is_empty() { None } else { Some(value) }
+        };
+        self.auth_source = {
+            let value = match self.auth_source {
+                Some(ref auth_source) => Input::<String>::new()
+                    .default(auth_source.clone())
+                    .with_prompt("Auth Source (optional)")
+                    .allow_empty(true)
+                    .interact()?,
+                None => Input::<String>::new()
+                    .with_prompt("Auth Source (optional)")
+                    .allow_empty(true)
+                    .interact()?
+            };
 
-    pub fn list_saved() -> impl Iterator<Item = Result<(sled::IVec, sled::IVec), sled::Error>> {
-        // TODO Parse key and value here
-        DB.iter()
-    }
-
-    pub fn remove_saved(name: &str) -> Result<sled::IVec, Error> {
-        DB.remove(&name)?.ok_or(Error::NoSuchConnection(name.to_owned()))
-    }
-
-    pub fn save(&self, name: &str) -> Result<(), Error> {
-        let data = bincode::serialize(self)?;
-        DB.insert(name, data)?;
-        
-        // TODO Should we have a global flush on app exit or drop?
-        DB.flush()?;
+            if value.is_empty() { None } else { Some(value) }
+        };
 
         Ok(())
-    }
-
-    pub fn list_databases(&self) -> Result<Vec<String>, mongodb::error::Error> {
-        use mongodb::options::ClientOptions;
-        use mongodb::options::StreamAddress;
-        use mongodb::sync::Client;
-
-        let hosts = self.host
-            .split(',')
-            .map(|h| { StreamAddress::parse(h) })
-            .collect::<Result<Vec<_>, _>>()?;
-        let client_options = ClientOptions::builder()
-            .hosts(hosts)
-            .repl_set_name(self.repl_set_name.clone())
-            .build();
-        let client = Client::with_options(client_options)?;
-
-        client.list_database_names(None, None)
-    }
-
-    #[allow(dead_code)]
-    pub fn database(self, db_name: String) -> Database {
-        Database::select(self, db_name)
-    }
-
-    pub fn dump(&self, db_name: &str) -> Result<ReadGuardian, io::Error> {
-        let mut cmd = process::Command::new("mongodump");
-
-        match &self.repl_set_name {
-            Some(repl_set_name) =>
-                cmd.arg(format!("--host={}/{}", repl_set_name, self.host)),
-            None =>
-                cmd.arg(format!("--host={}", self.host))
-        };
-
-        cmd
-            .arg(format!("--username={}", self.username))
-            .arg(format!("--password={}", self.password))
-            .arg(format!("--db={}", db_name))
-            .arg("--archive");
-        
-        if let Some(auth_source) = &self.auth_source {
-            cmd.arg(format!("--authenticationDatabase={}", auth_source));
-        }
-        
-        if self.use_ssl {
-            cmd.arg("--ssl");
-        }
-
-        ReadGuardian::adopt(cmd)
-    }
-
-    pub fn restore(&self, destination: &str, source: Option<&str>) -> Result<WriteGuardian, io::Error> {
-        let mut cmd = process::Command::new("mongorestore");
-
-        match &self.repl_set_name {
-            Some(repl_set_name) =>
-                cmd.arg(format!("--host={}/{}", repl_set_name, self.host)),
-            None =>
-                cmd.arg(format!("--host={}", self.host))
-        };
-
-        cmd
-            .arg(format!("--username={}", self.username))
-            .arg(format!("--password={}", self.password))
-            .arg("--archive");
-        
-        if let Some(auth_source) = &self.auth_source {
-            cmd.arg(format!("--authenticationDatabase={}", auth_source));
-        }
-        
-        match source {
-            Some(source_name) => {
-                cmd
-                    .arg(format!("--nsFrom={}.*", source_name))
-                    .arg(format!("--nsTo={}.*", destination));
-            },
-            None => {
-                cmd.arg(format!("--nsInclude={}.*", destination));
-            }
-        }
-        
-        if self.use_ssl {
-            cmd.arg("--ssl");
-        }
-
-        WriteGuardian::adopt(cmd)
     }
 }
