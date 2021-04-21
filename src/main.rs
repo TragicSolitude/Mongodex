@@ -41,7 +41,11 @@ async fn main() -> Result<()> {
         (@subcommand listdatabases =>
             (about: "List the databases currently present on the specified \
                 server by establishing a connection to the server and \
-                running the 'listDatabases' command.")
+                running the 'listDatabases' command.\
+                \
+                NOTE: Due to some bugs in the MongoDB driver for Rust, this \
+                command only doesn't work for Atlas instances above M2 unless \
+                the instance is running at least version 4.2.")
             (alias: "ld")
             (@arg name: +required))
         (@subcommand migrate =>
