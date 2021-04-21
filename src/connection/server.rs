@@ -153,11 +153,14 @@ impl Server {
             .with_prompt("Username")
             .allow_empty(true)
             .interact()?;
-        self.password = Password::new()
-            .with_prompt("Password (Input hidden)")
+        let new_password = Password::new()
+            .with_prompt("Password (Input hidden, leave empty to keep existing)")
             .with_confirmation("Confirm password", "Password mismatch")
             .allow_empty_password(true)
             .interact()?;
+        if !new_password.is_empty() {
+            self.password = new_password;
+        }
         self.use_ssl = Confirm::new()
             .default(self.use_ssl)
             .with_prompt("Use SSL?")
