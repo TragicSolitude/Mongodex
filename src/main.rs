@@ -78,7 +78,7 @@ async fn main() -> Result<()> {
                 database (by name) then specify the name of the original \
                 database that was backed up."))
         (@subcommand shell =>
-            (about: "Opens a shell to the specified connection")
+            (about: "Opens a shell to the specified connection (Linux Only)")
             (@arg connection_name: +required "The name of the connection"))
     );
 

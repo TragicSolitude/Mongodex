@@ -5,7 +5,6 @@ use dialoguer::Confirm;
 use dialoguer::Password;
 use dialoguer::Input;
 use std::process;
-use std::os::unix::process::CommandExt;
 
 #[derive(Serialize, Deserialize, Debug, Clone, sqlx::FromRow)]
 pub struct Server {
@@ -67,7 +66,13 @@ impl Server {
         mongodb::Client::with_options(self.into())
     }
 
+    #[cfg(target_os = "linux")]
     pub fn shell(self) -> io::Error {
+        // TODO Come up with cross-platform implementation. Hopefully without
+        // resorting to spawning child processes. I like that execvp totally
+        // replaces the existing process.
+        use std::os::unix::process::CommandExt;
+
         let mut command = process::Command::new("mongo");
 
         match &self.repl_set_name {

@@ -4,6 +4,7 @@ use anyhow::Result;
 use anyhow::Context;
 use anyhow::Error;
 
+#[cfg(target_os = "linux")]
 pub async fn run<'a, 'b>(connections: &'a mut ConnectionRepository, args: &'b ArgMatches<'b>) -> Result<()> {
     let name = args.value_of("connection_name")
         .with_context(|| "Name argument not provided")?;
@@ -16,4 +17,9 @@ pub async fn run<'a, 'b>(connections: &'a mut ConnectionRepository, args: &'b Ar
     let error = server.shell();
 
     Err(Error::from(error))
+}
+
+#[cfg(not(target_os = "linux"))]
+pub async fn run<'a, 'b>(connections: &'a mut ConnectionRepository, args: &'b ArgMatches<'b>) -> Result<()> {
+    unimplemented!();
 }
