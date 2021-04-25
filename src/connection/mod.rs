@@ -7,6 +7,10 @@ pub use server::ServerList;
 pub use database::Database;
 use sqlx::SqliteConnection;
 
+// TODO Somehow add more descriptive error messages to these. Not sure if
+// changing the error type from these methods is the correct way to go about
+// that or not.
+
 pub struct ConnectionRepository {
     db: SqliteConnection
 }

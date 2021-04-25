@@ -22,13 +22,16 @@ impl Database {
     // I wonder if I could make some nifty ergnomic interface for this that
     // would only need the ConnectionRepository instance when the database name
     // isn't given
+    //
+    // TODO Change this to some kind of parsing framework that can support
+    // Database instances not owning the Server instance they are related to.
     pub async fn from_str(connections: &mut ConnectionRepository, input: &str) -> Result<Self> {
         // TODO maybe use rsplit_once when it is stabilized?
         // let (server_name, db_name) = input.rsplit_once('@')
         //     .with_context(|| "No database specified")?;
         let mut parts = input.rsplitn(2, '@');
         let server_name = parts.next()
-            .ok_or(anyhow!("No connection given"))?;
+            .ok_or_else(|| anyhow!("No connection given"))?;
         let server = connections.get_connection(server_name).await?;
         let database_names;
         // TODO change to .ok_or_else once async closures improve
