@@ -33,8 +33,7 @@ impl ConnectionRepository {
                                use_ssl, repl_set_name, auth_source
                         FROM connections
                         WHERE name = ?", name)
-            .fetch_one(&mut self.db)
-            .await
+            .fetch_one(&mut self.db).await
     }
 
     pub async fn add_connection(&mut self, info: &Server) -> Result<(), sqlx::Error> {
@@ -45,10 +44,8 @@ impl ConnectionRepository {
                      info.name, info.read_only, info.host, info.username,
                      info.password, info.use_ssl, info.repl_set_name,
                      info.auth_source)
-            .execute(&mut self.db)
-            .await?;
-
-        Ok(())
+            .execute(&mut self.db).await
+            .map(|_result| ())
     }
 
     pub async fn replace_connection(&mut self, info: &Server) -> Result<(), sqlx::Error> {
@@ -59,17 +56,13 @@ impl ConnectionRepository {
                      info.read_only, info.host, info.username, info.password,
                      info.use_ssl, info.repl_set_name, info.auth_source,
                      info.name)
-            .execute(&mut self.db)
-            .await?;
-
-        Ok(())
+            .execute(&mut self.db).await
+            .map(|_result| ())
     }
 
     pub async fn remove_connection(&mut self, name: &str) -> Result<(), sqlx::Error> {
         sqlx::query!("DELETE FROM connections WHERE name = ?", name)
-            .execute(&mut self.db)
-            .await?;
-
-        Ok(())
+            .execute(&mut self.db).await
+            .map(|_result| ())
     }
 }
