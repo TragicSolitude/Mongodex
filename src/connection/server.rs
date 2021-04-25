@@ -49,9 +49,9 @@ pub struct Server {
     pub(super) auth_source: Option<String>
 }
 
-impl Into<mongodb::options::ClientOptions> for &Server {
-    fn into(self) -> mongodb::options::ClientOptions {
-        let hosts = self.host
+impl From<&Server> for mongodb::options::ClientOptions {
+    fn from(server: &Server) -> Self {
+        let hosts = server.host
             .split(',')
             .map(|host| mongodb::options::StreamAddress::parse(host).unwrap())
             .collect::<Vec<_>>();
@@ -60,20 +60,20 @@ impl Into<mongodb::options::ClientOptions> for &Server {
         let mut options = mongodb::options::ClientOptions::builder()
             .hosts(hosts)
             // Any way to avoid the clone here?
-            .repl_set_name(self.repl_set_name.clone())
+            .repl_set_name(server.repl_set_name.clone())
             .build();
 
-        if !self.username.is_empty() {
+        if !server.username.is_empty() {
             let credential = mongodb::options::Credential::builder()
-                .username(self.username.clone())
-                .password(self.password.clone())
-                .source(self.auth_source.clone())
+                .username(server.username.clone())
+                .password(server.password.clone())
+                .source(server.auth_source.clone())
                 .build();
 
             options.credential = Some(credential);
         }
 
-        if self.use_ssl {
+        if server.use_ssl {
             let tls_options = mongodb::options::TlsOptions::default();
             let tls = mongodb::options::Tls::Enabled(tls_options);
 
