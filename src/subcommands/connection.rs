@@ -2,21 +2,11 @@ use anyhow::Result;
 use clap::ArgMatches;
 use crate::ConnectionRepository;
 use crate::connection::Server;
-use colored::*;
 use anyhow::Context;
 
 async fn list(connections: &mut ConnectionRepository) -> Result<()> {
-    // println!("ALL CONNECTIONS");
-
     let server_list = connections.list_connections().await?;
-    // TODO Move print logic into server type itself
-    let header = format!("{: <10}\t{: <70}", "Name", "Host");
-    println!("{}", header.bold());
-    for server in server_list {
-        // let read_only = if server.read_only { "Y" } else { "N" };
-        // println!("{: <10}\t{: <10}", "localhost:27017", read_only);
-        println!("{}", server);
-    }
+    println!("{}", server_list);
 
     Ok(())
 }

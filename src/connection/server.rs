@@ -1,10 +1,41 @@
-use std::{fmt::Display, io};
+use std::fmt::Display;
+use std::io;
+use std::ops::Deref;
 use serde::Serialize;
 use serde::Deserialize;
 use dialoguer::Confirm;
 use dialoguer::Password;
 use dialoguer::Input;
 use std::process;
+use colored::*;
+
+pub struct ServerList(pub Vec<Server>);
+
+impl Deref for ServerList {
+    type Target = Vec<Server>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Display for ServerList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let header = format!("{: <10}\t{: <70}", "Name", "Host");
+        writeln!(f, "{}", header.bold())?;
+        for server in self.0.iter() {
+            writeln!(f, "{: <10}\t{: <70}", server.name, server.host)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl From<Vec<Server>> for ServerList {
+    fn from(list: Vec<Server>) -> Self {
+        ServerList(list)
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, sqlx::FromRow)]
 pub struct Server {
@@ -54,10 +85,10 @@ impl Into<mongodb::options::ClientOptions> for &Server {
 }
 
 impl Display for Server {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // TODO Change this format to be a more verbose output and use a
         // dedicated method for printing a list of Servers
-        write!(f, "{: <10}\t{: <70}", self.name, self.host)
+        todo!();
     }
 }
 

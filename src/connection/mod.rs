@@ -3,6 +3,7 @@ mod server;
 
 // pub use database::Database;
 pub use server::Server;
+pub use server::ServerList;
 pub use database::Database;
 use sqlx::SqliteConnection;
 
@@ -15,15 +16,15 @@ impl ConnectionRepository {
         ConnectionRepository { db }
     }
 
-    pub async fn list_connections(&mut self) -> Result<Vec<Server>, sqlx::Error> {
+    pub async fn list_connections(&mut self) -> Result<ServerList, sqlx::Error> {
         // TODO Create ServerEntry struct to represent what's actually in the
         // database
         sqlx::query_as!(Server, "
                         SELECT name, read_only, host, username, password,
                                use_ssl, repl_set_name, auth_source
                         FROM connections")
-            .fetch_all(&mut self.db)
-            .await
+            .fetch_all(&mut self.db).await
+            .map(|value| value.into())
     }
 
     pub async fn get_connection(&mut self, name: &str) -> Result<Server, sqlx::Error> {
