@@ -117,7 +117,7 @@ impl Server {
     }
 
     #[cfg(target_os = "linux")]
-    pub fn shell(self) -> io::Error {
+    pub fn shell(&self) -> io::Error {
         // TODO Come up with cross-platform implementation. Hopefully without
         // resorting to spawning child processes. I like that execvp totally
         // replaces the existing process.
@@ -125,8 +125,8 @@ impl Server {
 
         let mut command = process::Command::new("mongo");
 
-        match &self.repl_set_name {
-            Some(repl_set_name) =>
+        match self.repl_set_name {
+            Some(ref repl_set_name) =>
                 command.arg(format!("--host={}/{}", repl_set_name, self.host)),
             None =>
                 command.arg(format!("--host={}", self.host))
@@ -138,7 +138,7 @@ impl Server {
                 .arg(format!("--password={}", self.password));
         }
 
-        if let Some(auth_source) = &self.auth_source {
+        if let Some(ref auth_source) = self.auth_source {
             command.arg(format!("--authenticationDatabase={}", auth_source));
         }
 
