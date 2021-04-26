@@ -21,7 +21,7 @@ impl Deref for ServerList {
 
 impl Display for ServerList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let header = format!("{: <10}\t{: <70}", "Name", "Host");
+        let header = format!("{: <10}\t{: <70}", "NAME", "HOST");
         writeln!(f, "{}", header.bold())?;
         for server in self.0.iter() {
             writeln!(f, "{: <10}\t{: <70}", server.name, server.host)?;
@@ -85,10 +85,29 @@ impl From<&Server> for mongodb::options::ClientOptions {
 }
 
 impl Display for Server {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // TODO Change this format to be a more verbose output and use a
-        // dedicated method for printing a list of Servers
-        todo!();
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fn yesno(value: bool) -> char {
+            if value { 'Y' } else { 'N' }
+        }
+
+        fn option(value: &Option<String>) -> &str {
+            match value {
+                Some(ref value) => value,
+                None => ""
+            }
+        }
+
+        let header = format!("SERVER \"{}\"", self.name);
+        writeln!(f, "{}", header.bold())?;
+        writeln!(f, "{: <12} {}", "Read Only?:", yesno(self.read_only))?;
+        writeln!(f, "{: <12} {}", "Host:", self.host)?;
+        writeln!(f, "{: <12} {}", "Username:", self.username)?;
+        writeln!(f, "{: <12} {}", "Password:", "********")?;
+        writeln!(f, "{: <12} {}", "Uses TLS?:", yesno(self.use_ssl))?;
+        writeln!(f, "{: <12} {}", "Replica Set:", option(&self.repl_set_name))?;
+        writeln!(f, "{: <12} {}", "Auth Source:", option(&self.auth_source))?;
+
+        Ok(())
     }
 }
 

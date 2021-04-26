@@ -29,6 +29,9 @@ async fn main() -> Result<()> {
             (alias: "c")
             (@subcommand list =>
                 (about: "List all saved connections"))
+            (@subcommand show =>
+                (about: "Show details about a connection")
+                (@arg name: +required))
             (@subcommand add =>
                 (about: "Add a new connection")
                 (@arg name: +required))

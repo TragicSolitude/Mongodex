@@ -10,6 +10,13 @@ pub async fn run<'a, 'b>(connections: &'a mut ConnectionRepository, args: &'b Ar
             let server_list = connections.list_connections().await?;
             println!("{}", server_list);
         },
+        ("show", Some(subargs)) => {
+            let name = subargs.value_of("name")
+                .with_context(|| "Name argument not provided")?;
+
+            let server = connections.get_connection(name).await?;
+            println!("{}", server);
+        },
         ("add", Some(subargs)) => {
             let name = subargs.value_of("name")
                 .with_context(|| "Name argument not provided")?;
