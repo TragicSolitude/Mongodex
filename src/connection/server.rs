@@ -53,7 +53,9 @@ impl From<&Server> for mongodb::options::ClientOptions {
     fn from(server: &Server) -> Self {
         let hosts = server.host
             .split(',')
-            .map(|host| mongodb::options::StreamAddress::parse(host).unwrap())
+            // TODO parse server address when constructing Server instance so
+            // that conversion to ClientOptions can be infallible
+            .map(|host| mongodb::options::ServerAddress::parse(host).unwrap())
             .collect::<Vec<_>>();
         // Default options
         // TODO Figure out how to avoid all these clones
@@ -80,11 +82,15 @@ impl From<&Server> for mongodb::options::ClientOptions {
             options.tls = Some(tls);
         }
 
+        println!("{:?}", &options);
+
         options
     }
 }
 
 impl Display for Server {
+    // Clippy complains but it looks weird when I change it to clippy's way
+    #[allow(clippy::write_literal)]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fn yesno(value: bool) -> char {
             if value { 'Y' } else { 'N' }

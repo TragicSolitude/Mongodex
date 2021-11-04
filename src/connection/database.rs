@@ -1,9 +1,11 @@
-use dialoguer::Select;
 use std::process;
+use dialoguer::Select;
+use anyhow::Result;
 use crate::guardian::ReadGuardian;
 use crate::guardian::WriteGuardian;
-use super::{ConnectionRepository, Server};
-use anyhow::Result;
+use crate::RUNTIME;
+use super::ConnectionRepository;
+use super::Server;
 
 pub struct Database {
     // TODO Consider making this a reference so that a .list_databases method
@@ -25,21 +27,23 @@ impl Database {
     //
     // TODO Change this to some kind of parsing framework that can support
     // Database instances not owning the Server instance they are related to.
-    pub async fn from_str(connections: &mut ConnectionRepository, input: &str) -> Result<Self> {
+    pub fn from_str(connections: &mut dyn ConnectionRepository, input: &str) -> Result<Self> {
         // TODO maybe use rsplit_once when it is stabilized?
         // let (server_name, db_name) = input.rsplit_once('@')
         //     .with_context(|| "No database specified")?;
         let mut parts = input.rsplitn(2, '@');
         let server_name = parts.next()
             .ok_or_else(|| anyhow!("No connection given"))?;
-        let server = connections.get_connection(server_name).await?;
+        let server = connections.get_connection(server_name)?;
         let database_names;
-        // TODO change to .ok_or_else once async closures improve
+        // TODO change to .ok_or_else once I can figure out the error types a
+        // bit better.
         let db_name = match parts.next() {
             Some(part) => part,
             None => {
                 let server_connection = server.connect()?;
-                database_names = server_connection.list_database_names(None, None).await?;
+                database_names = RUNTIME.block_on(
+                    server_connection.list_database_names(None, None))?;
                 let db = Select::new()
                     .with_prompt("Select a database")
                     .default(0)

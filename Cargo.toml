@@ -1,28 +1,30 @@
 [package]
 name = "mongodex"
-version = "0.9.0"
+version = "1.0.0"
 authors = ["Noah Shuart <shuart.noah.s@gmail.com>"]
 edition = "2018"
 
 [dependencies]
 clap = "2.33"
-async-std = "1.6"
 dialoguer = "0.6"
 os_pipe = "0.9"
 directories = "3.0"
 anyhow = "1.0"
-serde = { version = "1.0", features = ["derive"] }
 colored = "2.0"
+shaku = "0.6"
+lazy_static = "1.4"
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1", features = ["rt", "time"] }
 
 [dependencies.sqlx]
 version = "0.4"
 default-features = false
-features = ["runtime-async-std-rustls", "macros", "sqlite", "migrate"]
+features = ["runtime-tokio-rustls", "macros", "sqlite", "migrate"]
 
 [dependencies.mongodb]
-version = "1.1"
+version = "2.0"
 default-features = false
-features = ["async-std-runtime"]
+features = ["tokio-runtime"]
 
 [profile.release]
 lto = true

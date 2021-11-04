@@ -1,29 +1,60 @@
 #[macro_use] extern crate clap;
 #[macro_use] extern crate anyhow;
+#[macro_use] extern crate lazy_static;
+
+use std::fs;
+use std::path;
+use shaku::HasProvider;
+use anyhow::Result;
 
 mod connection;
-mod subcommands;
 mod guardian;
+mod sqlite;
+mod command;
 
-use connection::ConnectionRepository;
-use anyhow::Result;
-use directories::ProjectDirs;
-use sqlx::prelude::*;
+pub use connection::Server;
+pub use connection::Database;
+pub use connection::ConnectionRepository;
 
-async fn init_path(path: &std::path::Path) -> Result<&std::path::Path> {
-    // TODO with_context
-    async_std::fs::create_dir_all(path).await?;
+lazy_static! {
+    static ref PROJECT_DIRECTORIES: directories::ProjectDirs =
+        directories::ProjectDirs::from("us", "InTheVoid", "Mongodex")
+            .expect("No standard app directory available on this platform");
 
-    Ok(path)
+    static ref DATA_DIRECTORY: &'static path::Path = {
+        let path = PROJECT_DIRECTORIES.data_dir();
+        fs::create_dir_all(path)
+            .expect("Could not create data directory");
+
+        path
+    };
+
+    static ref RUNTIME: tokio::runtime::Runtime =
+        tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .expect("Failed to initialize runtime");
 }
 
-#[async_std::main]
-async fn main() -> Result<()> {
-    let app = clap_app!(mongodex =>
+shaku::module! {
+    AppModule {
+        components = [],
+        providers = [
+            sqlite::SqliteConnection,
+            connection::SqliteConnectionRepository,
+            command::NullCommand
+        ]
+    }
+}
+
+use command::Command;
+
+fn main() -> Result<()> {
+    // TODO SSH Tunneling
+    let cli_app = clap_app!(mongodex =>
         (version: "0.1")
         (author: "Noah Shuart <shuart.noah.s@gmail.com>")
-        (about: "CLI tool for managing multiple MongoDB databases across \
-            multiple servers.")
+        (about: "CLI tool for managing multiple MongoDB databases")
         (@subcommand connection =>
             (about: "Manage saved database connections")
             (alias: "c")
@@ -41,14 +72,19 @@ async fn main() -> Result<()> {
             (@subcommand edit =>
                 (about: "Edit a saved connection")
                 (@arg name: +required)))
+        (@subcommand tunnel =>
+            (about: "Manage saved tunnels")
+            (alias: "t")
+            (@subcommand list =>
+                (about: "List all saved tunnels")))
         (@subcommand listdatabases =>
             (about: "List the databases currently present on the specified \
                 server by establishing a connection to the server and \
                 running the 'listDatabases' command.\
                 \
                 NOTE: Due to some bugs in the MongoDB driver for Rust, this \
-                command only doesn't work for Atlas instances above M2 unless \
-                the instance is running at least version 4.2.")
+                command doesn't work for Atlas instances above M2 unless the \
+                instance is running at least version 4.2.")
             (alias: "ld")
             (@arg name: +required))
         (@subcommand migrate =>
@@ -58,7 +94,7 @@ async fn main() -> Result<()> {
             (@arg destination: --to +required +takes_value "Destination \
                 connection"))
         (@subcommand dump =>
-            (about: "Dump a database toa filesystem [unstable]")
+            (about: "Dump a database to a filesystem [unstable]")
             (alias: "b")
             (@arg source: +required "Which saved connection to use. This \
                 should be specified in the format [database@]saved-connection \
@@ -85,51 +121,12 @@ async fn main() -> Result<()> {
             (@arg connection_name: +required "The name of the connection"))
     );
 
-    let cli_options = app.get_matches();
-    let project_directories = ProjectDirs::from("us", "InTheVoid", "Mongodex")
-        .expect("No standard app directory available on this platform");
-    let data_directory = init_path(project_directories.data_dir());
+    let args = cli_app.get_matches();
+    let (command, subargs) = command::get_command(&args);
+    let app = AppModule::builder()
+        .with_provider_override::<dyn Command>(command)
+        .build();
+    let mut command: Box<dyn Command> = app.provide().unwrap_or_default();
 
-    let db_connection = async {
-        let db_path = data_directory.await?.join("connections.db");
-        let mut connection = sqlx::sqlite::SqliteConnectOptions::new()
-            .filename(db_path)
-            .create_if_missing(true)
-            .connect()
-            .await?;
-
-        // Run migrations against database to ensure schema is valid
-        sqlx::migrate!("./migrations")
-            .run(&mut connection)
-            .await?;
-
-        Ok(connection) as Result<sqlx::SqliteConnection>
-    };
-
-    let connections = async {
-        let repository = ConnectionRepository::new(db_connection.await?);
-
-        Ok(repository) as Result<ConnectionRepository>
-    };
-
-    // TODO SubCommand trait, *SubCommand classes, and a SubCommand factory that
-    // unifies the db_connection initialization and stuff
-
-    let mut connections = connections.await?;
-
-    match cli_options.subcommand() {
-        ("connection", Some(args)) =>
-            subcommands::connection(&mut connections, args).await,
-        ("listdatabases", Some(args)) =>
-            subcommands::listdatabases(&mut connections, args).await,
-        ("migrate", Some(args)) =>
-            subcommands::migrate(&mut connections, args).await,
-        ("dump", Some(args)) =>
-            subcommands::dump(&mut connections, args).await,
-        ("restore", Some(args)) =>
-            subcommands::restore(&mut connections, args).await,
-        ("shell", Some(args)) =>
-            subcommands::shell(&mut connections, args).await,
-        _ => Ok(())
-    }
+    command.run(subargs)
 }
